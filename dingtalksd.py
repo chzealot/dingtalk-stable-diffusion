@@ -60,7 +60,6 @@ class SDBotHandler(dingtalk_stream.ChatbotHandler):
 
     def do_sd_process(self):
         self.logger.info('do sd process ...')
-        # pipe = StableDiffusionPipeline.from_pretrained("/Users/zealot/.cache/huggingface/hub/models--runwayml--stable-diffusion-v1-5/snapshots/39593d5650112b4cc580433f6b0435385882d819")
         pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5")
         pipe = pipe.to(self._options.device)
         # Recommended if your computer has < 64 GB of RAM
