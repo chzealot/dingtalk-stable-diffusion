@@ -21,6 +21,8 @@ A DingTalk chatbot with stable diffusion
 1. 开发者后台中，左侧导航"消息推送"，有"点击调试"，会自动创建群，并将机器人安装进去，群内 AT 机器人即可
 2. 企业内部群中，添加机器人
 
+![效果展示](https://pic.peo.pw/a/2023/05/16/64635924b7adb.png)
+
 ## 使用说明：Mac 本地环境
 
 敬请期待
