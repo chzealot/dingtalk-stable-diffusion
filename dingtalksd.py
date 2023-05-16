@@ -22,6 +22,10 @@ def define_options():
         '--client_secret', dest='client_secret', required=True,
         help='app_secret or suite_secret from https://open-dev.digntalk.com'
     )
+    parser.add_argument(
+        '--device', dest='device', default='mps',
+        help='device for pytorch, e.g. mps, cuda, etc.'
+    )
     options = parser.parse_args()
     return options
 
@@ -37,10 +41,11 @@ def setup_logger():
 
 
 class SDBotHandler(dingtalk_stream.ChatbotHandler):
-    def __init__(self, logger: logging.Logger = None):
+    def __init__(self, options, logger: logging.Logger = None):
         super(SDBotHandler, self).__init__()
         if logger:
             self.logger = logger
+        self._options = options
         self._enable_four_images = True
         self._task_queue = multiprocessing.Queue(maxsize=32)
 
@@ -57,7 +62,7 @@ class SDBotHandler(dingtalk_stream.ChatbotHandler):
         self.logger.info('do sd process ...')
         # pipe = StableDiffusionPipeline.from_pretrained("/Users/zealot/.cache/huggingface/hub/models--runwayml--stable-diffusion-v1-5/snapshots/39593d5650112b4cc580433f6b0435385882d819")
         pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5")
-        pipe = pipe.to("mps")
+        pipe = pipe.to(self._options.device)
         # Recommended if your computer has < 64 GB of RAM
         pipe.enable_attention_slicing()
 
@@ -154,7 +159,7 @@ def main():
     credential = dingtalk_stream.Credential(options.client_id, options.client_secret)
     client = dingtalk_stream.DingTalkStreamClient(credential, logger=logger)
 
-    client.register_callback_hanlder(dingtalk_stream.ChatbotMessage.TOPIC, SDBotHandler(logger=logger))
+    client.register_callback_hanlder(dingtalk_stream.ChatbotMessage.TOPIC, SDBotHandler(options, logger=logger))
     client.start_forever()
 
 
