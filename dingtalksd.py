@@ -8,6 +8,7 @@ import multiprocessing
 from PIL import Image
 
 from diffusers import StableDiffusionPipeline
+import torch
 from dingtalk_stream import AckMessage
 import dingtalk_stream
 
@@ -25,6 +26,10 @@ def define_options():
     parser.add_argument(
         '--device', dest='device', default='mps',
         help='device for pytorch, e.g. mps, cuda, etc.'
+    )
+    parser.add_argument(
+        '--subprocess', dest='subprocess', default=False, action='store_true',
+        help='run stable diffusion in subprocess'
     )
     options = parser.parse_args()
     return options
@@ -46,11 +51,15 @@ class SDBotHandler(dingtalk_stream.ChatbotHandler):
         if logger:
             self.logger = logger
         self._options = options
+        self._pipe = None
+        if not self._options.subprocess:
+            self._pipe = self.create_pipe()
         self._enable_four_images = True
         self._task_queue = multiprocessing.Queue(maxsize=32)
 
     def pre_start(self):
-        self.start_sd_process()
+        if self._options.subprocess:
+            self.start_sd_process()
 
     def start_sd_process(self):
         from multiprocessing import Process
@@ -60,29 +69,34 @@ class SDBotHandler(dingtalk_stream.ChatbotHandler):
 
     def do_sd_process(self):
         self.logger.info('do sd process ...')
-        pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5")
+        self._pipe = self.create_pipe()
+        while True:
+            incoming_message = self._task_queue.get()
+            self.process_incoming_message(incoming_message)
+
+    def create_pipe(self):
+        pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16)
         pipe = pipe.to(self._options.device)
         # Recommended if your computer has < 64 GB of RAM
         pipe.enable_attention_slicing()
+        return pipe
 
-        while True:
-            incoming_message = self._task_queue.get()
-            self.logger.info('get task, incoming_message=%s', incoming_message)
-            try:
-                begin_time = time.time()
-                image_content = self.txt2img(pipe, incoming_message)
-                elapse_seconds = time.time() - begin_time
-            except Exception as e:
-                self.logger.error('do sd process failed, error=%s', e)
-                continue
+    def process_incoming_message(self, incoming_message):
+        self.logger.info('get task, incoming_message=%s', incoming_message)
+        try:
+            begin_time = time.time()
+            image_content = self.txt2img(self._pipe, incoming_message)
+            elapse_seconds = time.time() - begin_time
+        except Exception as e:
+            self.logger.error('do sd process failed, error=%s', e)
+            return
 
-            complete_task = {
-                'image': image_content,
-                'incoming_message': incoming_message,
-                'elapse_seconds': elapse_seconds,
-            }
-            self.process_complete(complete_task)
-        return
+        complete_task = {
+            'image': image_content,
+            'incoming_message': incoming_message,
+            'elapse_seconds': elapse_seconds,
+        }
+        self.process_complete(complete_task)
 
     def txt2img(self, pipe, incoming_message):
         if self._enable_four_images:
@@ -120,7 +134,10 @@ class SDBotHandler(dingtalk_stream.ChatbotHandler):
     async def process(self, callback: dingtalk_stream.CallbackMessage):
         incoming_message = dingtalk_stream.ChatbotMessage.from_dict(callback.data)
         self.logger.info('received incoming message, message=%s', incoming_message)
-        self._task_queue.put(incoming_message)
+        if self._options.subprocess:
+            self._task_queue.put(incoming_message)
+        else:
+            self.process_incoming_message(incoming_message)
         return AckMessage.STATUS_OK, 'OK'
 
     def process_complete(self, complete_task):
@@ -158,7 +175,7 @@ def main():
     credential = dingtalk_stream.Credential(options.client_id, options.client_secret)
     client = dingtalk_stream.DingTalkStreamClient(credential, logger=logger)
 
-    client.register_callback_hanlder(dingtalk_stream.ChatbotMessage.TOPIC, SDBotHandler(options, logger=logger))
+    client.register_callback_hanlder('bot_got_msg', SDBotHandler(options, logger=logger))
     client.start_forever()
 
 
