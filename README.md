@@ -1,6 +1,8 @@
 # dingtalk-stable-diffusion
 A DingTalk chatbot with stable diffusion
 
+备注： **单聊暂未支持，目前仅支持群聊**
+
 ## 使用说明：Google colab环境
 
 ### 准备材料
