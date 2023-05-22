@@ -27,6 +27,19 @@ A DingTalk chatbot with stable diffusion
 
 ## 使用说明：Mac 本地环境
 
-敬请期待
+跟上面的 Google colab 环境流程类似，区别在于启动参数：
+
+```shell
+python dingtalksd.py \
+    --client_id="put-your-dingtalk-client-id-here" \
+    --client_secret="put-your-dingtalk-client-secret-here" \
+    --device=mps \
+    --subprocess
+```
+
+注意：
+
+1. --device=mps 参数，不要设置为 cuda（Mac不支持该能力）
+2. --subprocess 参数，建议开启，会将 txt2img 能力拆分到独立进程运行，避免执行任务期间主进程的 websocket 通道被阻塞
 
 ## 参考资料
