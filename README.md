@@ -30,7 +30,8 @@ A DingTalk chatbot with stable diffusion
 跟上面的 Google colab 环境流程类似，区别在于启动参数：
 
 ```shell
-python dingtalksd.py \
+$ pip install -r requirements.txt
+$ python dingtalksd.py \
     --client_id="put-your-dingtalk-client-id-here" \
     --client_secret="put-your-dingtalk-client-secret-here" \
     --device=mps \
