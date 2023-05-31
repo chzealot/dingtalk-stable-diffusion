@@ -21,6 +21,12 @@ A DingTalk chatbot with stable diffusion
 3. 在 "put-your-dingtalk-client-id-here" 和 "put-your-dingtalk-client-secret-here" 处，填入步骤1中的 ClientID 和 ClientSecret
 4. 执行 Google colab 中的代码
 
+**温馨提醒：**
+
+1. 需要在钉钉开发者后台，为机器人应用申请 "企业内机器人发送消息权限"（权限点 Code 为 qyapi_robot_sendmsg），否则会出现功能降级（发送markdown消息，而不是卡片），不支持进度更新 
+2. 如果是从其他地方 copy 到 colab 的代码，务必将运行时类型中硬件加速器改为 GPU（菜单栏-代码执行程序-更改运行时类型）
+
+
 至此，钉钉 Stable Diffusion 机器人已经创建完成，可以在群里体验了。有两种方式：
 
 1. 开发者后台中，左侧导航"消息推送"，有"点击调试"，会自动创建群，并将机器人安装进去，群内 AT 机器人即可
