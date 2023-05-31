@@ -97,8 +97,6 @@ class Messenger(object):
         }
         values = {
             'cardTemplateId': 'StandardCard',
-            'openConversationId': incoming_message.conversation_id,
-            # 'singleChatReceiver': json.dumps({'userId': incoming_message.sender_staff_id}),
             'cardBizId': card_id,
             'robotCode': incoming_message.robot_code,
             'cardData': json.dumps(card_data),
@@ -109,6 +107,13 @@ class Messenger(object):
                 }]),
             }
         }
+        if incoming_message.conversation_type == '1':
+            # private chat
+            values['singleChatReceiver'] = json.dumps({'userId': incoming_message.sender_staff_id})
+        else:
+            # group chat
+            values['openConversationId'] = incoming_message.conversation_id
+
         url = 'https://api.dingtalk.com/v1.0/im/v1.0/robot/interactiveCards/send'
         try:
             response = requests.post(url,
