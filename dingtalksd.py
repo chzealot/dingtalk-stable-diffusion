@@ -97,7 +97,7 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         self._pipe = None
         if not self._options.subprocess:
             self._pipe = self.create_pipe()
-        self._enable_four_images = False
+        self._enable_four_images = True
         self._task_queue = multiprocessing.Queue(maxsize=128)
         self._messenger: messenger.Messenger = None
 
