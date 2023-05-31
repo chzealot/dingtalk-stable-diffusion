@@ -124,10 +124,6 @@ class Messenger(object):
     def update_card(self, progress, images, elapse_seconds, incoming_message: dingtalk_stream.ChatbotMessage):
         card_id = self._gen_card_id(incoming_message)
         card_data = self.get_card_data(progress, images, elapse_seconds, incoming_message)
-        print('progress:', progress)
-        print('incoming_message:', incoming_message)
-        print('card_id:', card_id)
-        print('card_data:', card_data)
         request_headers = {
             'Content-Type': 'application/json',
             'x-acs-dingtalk-access-token': self.dingtalk_client.get_access_token(),
