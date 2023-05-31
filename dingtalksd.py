@@ -3,6 +3,8 @@
 import logging
 import argparse
 import io
+import os
+import platform
 import time
 import multiprocessing
 from PIL import Image
@@ -24,14 +26,26 @@ def define_options():
         help='app_secret or suite_secret from https://open-dev.digntalk.com'
     )
     parser.add_argument(
-        '--device', dest='device', default='mps',
+        '--device', dest='device', required=False,
         help='device for pytorch, e.g. mps, cuda, etc.'
     )
     parser.add_argument(
-        '--subprocess', dest='subprocess', default=False, action='store_true',
+        '--subprocess', dest='subprocess', default=None, required=False, action='store_true',
         help='run stable diffusion in subprocess'
     )
     options = parser.parse_args()
+    is_darwin = platform.system().lower() == 'darwin'
+    is_google_colab = 'COLAB_RELEASE_TAG' in os.environ
+    if options.device is None:
+        if is_darwin:
+            options.device = 'mps'
+        if is_google_colab:
+            options.device = 'cuda'
+    if options.subprocess is None:
+        if is_darwin:
+            options.subprocess = True
+        if is_google_colab:
+            options.subprocess = False
     return options
 
 
@@ -45,17 +59,19 @@ def setup_logger():
     return logger
 
 
-class SDBotHandler(dingtalk_stream.ChatbotHandler):
+class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
     def __init__(self, options, logger: logging.Logger = None):
-        super(SDBotHandler, self).__init__()
+        super(StableDiffusionBot, self).__init__()
         if logger:
             self.logger = logger
+        self._is_darwin = platform.system().lower() == 'darwin'
+        self._is_google_colab = 'COLAB_RELEASE_TAG' in os.environ
         self._options = options
         self._pipe = None
         if not self._options.subprocess:
             self._pipe = self.create_pipe()
         self._enable_four_images = True
-        self._task_queue = multiprocessing.Queue(maxsize=32)
+        self._task_queue = multiprocessing.Queue(maxsize=128)
 
     def pre_start(self):
         if self._options.subprocess:
@@ -75,10 +91,12 @@ class SDBotHandler(dingtalk_stream.ChatbotHandler):
             self.process_incoming_message(incoming_message)
 
     def create_pipe(self):
-        pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16)
+        torch_dtype = None if self._is_darwin else torch.float16
+        pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", torch_dtype=torch_dtype)
         pipe = pipe.to(self._options.device)
-        # Recommended if your computer has < 64 GB of RAM
-        pipe.enable_attention_slicing()
+        if self._is_darwin:
+            # Recommended if your computer has < 64 GB of RAM
+            pipe.enable_attention_slicing()
         return pipe
 
     def process_incoming_message(self, incoming_message):
@@ -175,7 +193,7 @@ def main():
     credential = dingtalk_stream.Credential(options.client_id, options.client_secret)
     client = dingtalk_stream.DingTalkStreamClient(credential, logger=logger)
 
-    client.register_callback_hanlder(dingtalk_stream.chatbot.ChatbotMessage.TOPIC, SDBotHandler(options, logger=logger))
+    client.register_callback_hanlder(dingtalk_stream.chatbot.ChatbotMessage.TOPIC, StableDiffusionBot(options, logger=logger))
     client.start_forever()
 
 
