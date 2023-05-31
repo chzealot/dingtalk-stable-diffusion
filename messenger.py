@@ -163,9 +163,9 @@ class Messenger(object):
             "id": "imageList_1685500414369"
         })
         footers = list()
+        footers.append('> Elapse %ss' % round(elapse_seconds, 3))
         # 钉钉暂不支持该能力
         # links = ' | '.join(['[#%d](%s)' % (i+1, img) for (i,img) in enumerate(images)])
-        # footers.append('> Elapse %ss' % round(elapse_seconds, 3))
         # if not progress:
         #     footers.append('\n > 下载：' + links)
         footers.append('> Powered by '
