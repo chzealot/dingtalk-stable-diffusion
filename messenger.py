@@ -81,7 +81,6 @@ class Messenger(object):
         return response.json()
 
     def reply_card(self, images, elapse_seconds, incoming_message: dingtalk_stream.ChatbotMessage):
-        card_id = self._gen_card_id(incoming_message)
         medias = [self.upload_image(i) for i in images]
         result = self.update_card(None, medias, elapse_seconds, incoming_message)
         if result == 403:
@@ -163,12 +162,19 @@ class Messenger(object):
             "images": images,
             "id": "imageList_1685500414369"
         })
+        footers = list()
+        # 钉钉暂不支持该能力
+        # links = ' | '.join(['[#%d](%s)' % (i+1, img) for (i,img) in enumerate(images)])
+        # footers.append('> Elapse %ss' % round(elapse_seconds, 3))
+        # if not progress:
+        #     footers.append('\n > 下载：' + links)
+        footers.append('> Powered by '
+            '[https://github.com/chzealot/dingtalk-stable-diffusion]'
+            '(https://github.com/chzealot/dingtalk-stable-diffusion)'
+        )
         contents.append({
             "type": "markdown",
-            "text": ("> Elapse %ss\n> Powered by "
-                     "[https://github.com/chzealot/dingtalk-stable-diffusion]"
-                     "(https://github.com/chzealot/dingtalk-stable-diffusion)"
-                     ) % round(elapse_seconds, 3),
+            "text": '\n'.join(footers),
             "id": "markdown_1685516479734"
         })
         card_data = {

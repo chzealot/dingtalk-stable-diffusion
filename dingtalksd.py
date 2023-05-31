@@ -80,6 +80,8 @@ class ProgressBar(object):
     def callback(self, step: int, timestep, latents):
         if self.num_inference_steps <= 0 or step > self.num_inference_steps:
             return
+        if step > 0:
+            step -= 1
         elapse_seconds = time.time() - self.begin_time
         progress = '%d%%' % int(step*100 / self.num_inference_steps)
         is_new = False  # update cards instead of creating them
