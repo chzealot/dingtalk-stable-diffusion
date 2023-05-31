@@ -13,6 +13,7 @@ from diffusers import StableDiffusionPipeline
 import torch
 from dingtalk_stream import AckMessage
 import dingtalk_stream
+import messenger
 
 
 def define_options():
@@ -28,6 +29,10 @@ def define_options():
     parser.add_argument(
         '--device', dest='device', required=False,
         help='device for pytorch, e.g. mps, cuda, etc.'
+    )
+    parser.add_argument(
+        '--message_type', dest='message_type', default='card', required=False,
+        help='device for pytorch, e.g. markdown, card, etc.'
     )
     parser.add_argument(
         '--subprocess', dest='subprocess', default=None, required=False, action='store_true',
@@ -59,6 +64,28 @@ def setup_logger():
     return logger
 
 
+class ProgressBar(object):
+    def __init__(self,
+                 num_inference_steps: int,
+                 image_count: int,
+                 messenger: messenger.Messenger,
+                 begin_time: float,
+                 incoming_message: dingtalk_stream.ChatbotMessage):
+        self.num_inference_steps: int = num_inference_steps
+        self.image_count = image_count
+        self.messenger: messenger.Messenger = messenger
+        self.begin_time = begin_time
+        self.incoming_message: dingtalk_stream.ChatbotMessage = incoming_message
+
+    def callback(self, step: int, timestep, latents):
+        if self.num_inference_steps <= 0 or step > self.num_inference_steps:
+            return
+        elapse_seconds = time.time() - self.begin_time
+        progress = '%d%%' % int(step*100 / self.num_inference_steps)
+        is_new = False  # update cards instead of creating them
+        self.messenger.reply_progress(is_new, progress, self.image_count, elapse_seconds, self.incoming_message)
+
+
 class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
     def __init__(self, options, logger: logging.Logger = None):
         super(StableDiffusionBot, self).__init__()
@@ -72,10 +99,13 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
             self._pipe = self.create_pipe()
         self._enable_four_images = True
         self._task_queue = multiprocessing.Queue(maxsize=128)
+        self._messenger: messenger.Messenger = None
 
     def pre_start(self):
         if self._options.subprocess:
             self.start_sd_process()
+        else:
+            self._messenger = messenger.Messenger(self.logger, self.dingtalk_client)
 
     def start_sd_process(self):
         from multiprocessing import Process
@@ -84,8 +114,12 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         self.logger.info('worker started, process=%s', p)
 
     def do_sd_process(self):
+        self.logger = setup_logger()
+        self._messenger = messenger.Messenger(self.logger, self.dingtalk_client)
+
         self.logger.info('do sd process ...')
         self._pipe = self.create_pipe()
+
         while True:
             incoming_message = self._task_queue.get()
             self.process_incoming_message(incoming_message)
@@ -103,51 +137,36 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         self.logger.info('get task, incoming_message=%s', incoming_message)
         try:
             begin_time = time.time()
-            image_content = self.txt2img(self._pipe, incoming_message)
+            images = self.txt2img(self._pipe, begin_time, incoming_message)
             elapse_seconds = time.time() - begin_time
         except Exception as e:
             self.logger.error('do sd process failed, error=%s', e)
             return
 
         complete_task = {
-            'image': image_content,
+            'images': images,
             'incoming_message': incoming_message,
             'elapse_seconds': elapse_seconds,
         }
         self.process_complete(complete_task)
 
-    def txt2img(self, pipe, incoming_message):
+    def txt2img(self, pipe, begin_time, incoming_message):
+        image_count = 1
         if self._enable_four_images:
-            return self.txt2img_four(pipe, incoming_message)
-        else:
-            return self.txt2img_one(pipe, incoming_message)
-
-    def txt2img_one(self, pipe, incoming_message):
-        # First-time "warmup" pass (see explanation above)
+            image_count = 4
+        is_new = True  # create card
+        self._messenger.reply_progress(is_new, '0%', image_count, time.time() - begin_time, incoming_message)
         prompt = incoming_message.text.content.strip()
-        _ = pipe(prompt, height=512, width=512, num_inference_steps=1)
-        image = pipe(prompt, height=512, width=512).images[0]
-        fp = io.BytesIO()
-        image.save(fp, 'PNG')
-        return fp.getvalue()
-
-    def txt2img_four(self, pipe, incoming_message):
-        # First-time "warmup" pass (see explanation above)
-        prompt = incoming_message.text.content.strip()
-        _ = pipe(prompt, height=512, width=512, num_inference_steps=1)
-        images = pipe(prompt, height=512, width=512, num_images_per_prompt=4).images
-        if len(images) < 4:
+        num_inference_steps = 50 # default value
+        progress = ProgressBar(num_inference_steps, image_count, self._messenger, begin_time, incoming_message)
+        images = pipe(prompt,
+                      num_inference_steps=num_inference_steps,
+                      callback=progress.callback,
+                      num_images_per_prompt=image_count).images
+        if len(images) < image_count:
             self.logger.error('txt2img_four failed, not enough images, images.size=%d', len(images))
             return
-        img_merge = Image.new('RGB', (1024, 1024))
-        img_merge.paste(images[0], (0, 0))
-        img_merge.paste(images[1], (512, 0))
-        img_merge.paste(images[2], (0, 512))
-        img_merge.paste(images[3], (512, 512))
-
-        fp = io.BytesIO()
-        img_merge.save(fp, 'PNG')
-        return fp.getvalue()
+        return images
 
     async def process(self, callback: dingtalk_stream.CallbackMessage):
         incoming_message = dingtalk_stream.ChatbotMessage.from_dict(callback.data)
@@ -161,29 +180,10 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
     def process_complete(self, complete_task):
         if not complete_task:
             return
-        image = complete_task['image']
+        images = complete_task['images']
         elapse_seconds = complete_task['elapse_seconds']
         incoming_message = complete_task['incoming_message']
-        response = self.reply_image(image, elapse_seconds, incoming_message)
-        self.logger.info('reply image, response=%s', response)
-
-    def reply_image(self, image_content, elapse_seconds, incoming_message):
-        media_id = self.dingtalk_client.upload_to_dingtalk(image_content)
-        self.logger.info('media_id=%s', media_id)
-        title = 'Stable Diffusion txt2img'
-        content = ('#### Prompts: %s\n\n'
-                   '![image](%s)\n\n'
-                   '> cost %ss\n'
-                   '> \n'
-                   '> Powered by Stable Diffusion\n'
-                   '> \n'
-                   '> via https://github.com/chzealot/dingtalk-stable-diffusion\n'
-                   ) % (
-                      incoming_message.text.content.strip(),
-                      media_id,
-                      round(elapse_seconds, 3)
-                  )
-        return self.reply_markdown(title, content, incoming_message)
+        self._messenger.reply(self._options.message_type, images, elapse_seconds, incoming_message)
 
 
 def main():
@@ -193,7 +193,8 @@ def main():
     credential = dingtalk_stream.Credential(options.client_id, options.client_secret)
     client = dingtalk_stream.DingTalkStreamClient(credential, logger=logger)
 
-    client.register_callback_hanlder(dingtalk_stream.chatbot.ChatbotMessage.TOPIC, StableDiffusionBot(options, logger=logger))
+    client.register_callback_hanlder(dingtalk_stream.chatbot.ChatbotMessage.TOPIC,
+                                     StableDiffusionBot(options, logger=logger))
     client.start_forever()
 
 
