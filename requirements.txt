@@ -4,6 +4,6 @@ accelerate
 diffusers~=0.16.1
 transformers
 urllib3==1.26.15
-dingtalk-stream>=0.2.1
+dingtalk-stream>=0.2.3
 Pillow~=9.5.0
 requests
