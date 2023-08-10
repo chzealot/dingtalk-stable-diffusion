@@ -172,6 +172,7 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         self._messenger.reply_progress(is_new, '0%', image_count, time.time() - begin_time, incoming_message)
         prompt = incoming_message.text.content.strip()
         prompt_en = self.translate_prompt(prompt)
+        self.logger.info('translate prompt finish. prompt=%s, prompt_en=%s', prompt, prompt_en)
         num_inference_steps = 50 # default value
         progress = ProgressBar(num_inference_steps, image_count, self._messenger, begin_time, incoming_message)
         images = pipe(prompt_en,

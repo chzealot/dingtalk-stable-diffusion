@@ -35,4 +35,6 @@ class DingTalkTranslater(object):
         except Exception as e:
             self.logger.error('do text translate exception, error=%s', e)
             return query
-        return response.json()['result']
+        result = response.json()['result']
+        self.logger.info('translate success, query=%s, result=%s', query, result)
+        return result
