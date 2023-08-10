@@ -6,12 +6,14 @@ import os
 import platform
 import time
 import multiprocessing
+import re
 
 from diffusers import StableDiffusionPipeline
 import torch
 from dingtalk_stream import AckMessage
 import dingtalk_stream
 import messenger
+import translate
 
 
 def define_options():
@@ -61,6 +63,16 @@ def setup_logger():
     logger.setLevel(logging.INFO)
     return logger
 
+def is_contain_chinese(source_prompt: str):
+    """
+        判断字符串是否包含中文字符
+        :param source_prompt:
+        :return: 布尔值，True表示包含中文，False表示不包含中文
+        """
+    pattern = re.compile(u'[\u4e00-\u9fa5]+')
+    match = pattern.search(source_prompt)
+    return True if match else False
+
 
 class ProgressBar(object):
     def __init__(self,
@@ -100,8 +112,10 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         self._enable_four_images = True
         self._task_queue = multiprocessing.Queue(maxsize=128)
         self._messenger: messenger.Messenger = None
+        self.translater = None
 
     def pre_start(self):
+        self.translater = translate.DingTalkTranslater(self.logger, self.dingtalk_client)
         if self._options.subprocess:
             self.start_sd_process()
         else:
@@ -157,9 +171,10 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         is_new = True  # create card
         self._messenger.reply_progress(is_new, '0%', image_count, time.time() - begin_time, incoming_message)
         prompt = incoming_message.text.content.strip()
+        prompt_en = self.translate_prompt(prompt)
         num_inference_steps = 50 # default value
         progress = ProgressBar(num_inference_steps, image_count, self._messenger, begin_time, incoming_message)
-        images = pipe(prompt,
+        images = pipe(prompt_en,
                       num_inference_steps=num_inference_steps,
                       callback=progress.callback,
                       num_images_per_prompt=image_count).images
@@ -184,6 +199,11 @@ class StableDiffusionBot(dingtalk_stream.ChatbotHandler):
         elapse_seconds = complete_task['elapse_seconds']
         incoming_message = complete_task['incoming_message']
         self._messenger.reply(self._options.message_type, images, elapse_seconds, incoming_message)
+
+    def translate_prompt(self, source_prompt: str):
+        if is_contain_chinese(source_prompt):
+            return self.translater.do_text_translate(source_prompt, source_language='zh', target_language='en')
+        return source_prompt
 
 
 def main():
