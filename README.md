@@ -17,9 +17,10 @@ A DingTalk chatbot with stable diffusion
 步骤
 
 1. 参考[DingTalk Stream Mode 介绍](https://github.com/open-dingtalk/dingtalk-stream-sdk-python)创建企业内部应用，获得 ClientID（即 AppKey）和 ClientSecret（即 AppSecret），并创建机器人，申请发消息权限（权限点Code为qyapi_robot_sendmsg），确认并发布应用
-2. 打开 Google colab：https://colab.research.google.com/github/chzealot/dingtalk-stable-diffusion/blob/main/dingtalk_stable_diffusion.ipynb
-3. 在 "put-your-dingtalk-client-id-here" 和 "put-your-dingtalk-client-secret-here" 处，填入步骤1中的 ClientID 和 ClientSecret
-4. 执行 Google colab 中的代码
+2. [可选]如果需要支持中文，需要为钉钉应用申请翻译权限：[钉钉开发者后台](https://open-dev.dingtalk.com) - 应用开发 - 企业内部应用 - 选择对应的应用 - 权限管理 - 搜索“翻译” - 找到“钉钉AI平台基础权限包”点击“申请权限”
+3. 打开 Google colab：https://colab.research.google.com/github/chzealot/dingtalk-stable-diffusion/blob/main/dingtalk_stable_diffusion.ipynb
+4. 在 "put-your-dingtalk-client-id-here" 和 "put-your-dingtalk-client-secret-here" 处，填入步骤1中的 ClientID 和 ClientSecret
+5. 执行 Google colab 中的代码
 
 **温馨提醒：**
 
