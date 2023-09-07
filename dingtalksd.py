@@ -214,7 +214,7 @@ def main():
     credential = dingtalk_stream.Credential(options.client_id, options.client_secret)
     client = dingtalk_stream.DingTalkStreamClient(credential, logger=logger)
 
-    client.register_callback_hanlder(dingtalk_stream.chatbot.ChatbotMessage.TOPIC,
+    client.register_callback_handler(dingtalk_stream.chatbot.ChatbotMessage.TOPIC,
                                      StableDiffusionBot(options, logger=logger))
     client.start_forever()
 
